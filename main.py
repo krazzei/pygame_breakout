@@ -9,6 +9,7 @@ running = True
 dt = 0
 
 player_pos = pygame.Vector2(screen.get_width() / 2 - 40, screen.get_height() - 40)
+player_size = pygame.Vector2(80, 30)
 cube_center = pygame.Vector2(player_pos.x + 40, player_pos.y + 15)
 ball_pos = pygame.Vector2(screen.get_width() / 2, screen.get_height() - 50)
 ball_velocity = pygame.Vector2(0, 0)
@@ -33,97 +34,99 @@ def getLineIntersection(p0: pygame.Vector2, p1: pygame.Vector2, p2: pygame.Vecto
         return (True, vec)
     return (False, vec)
 
-tup = getLineIntersection(pygame.Vector2(1, 0), pygame.Vector2(0, 1), pygame.Vector2(0, 0), pygame.Vector2(1,1))
-print(f"Did intersect {tup[0]}, point {tup[1]}")
-tup = getLineIntersection(pygame.Vector2(2, 0), pygame.Vector2(2, 2), pygame.Vector2(-1, 0), pygame.Vector2(-1, 3))
-print(f"Did intersect {tup[0]}, point {tup[1]}")
+def doBouncePhysics(ball_pos, bv_frame, ball_velocity, start, end, n):
+    ball_end = pygame.Vector2(ball_pos)
+    ball_pos -= bv_frame
+    intersection = getLineIntersection(ball_pos, ball_end, start, end)
+    if intersection[0]:
+        intersection[1]
+        leftover =  ball_end - intersection[1]
+        ball_velocity = ball_velocity.reflect(n)
+        leftover = leftover.reflect(n)
+        ball_pos = intersection[1] + leftover
+        #print(f"Leftover: {leftover}, ball vel: {ball_velocity}, ball pos: {ball_pos}")
 
+    return (ball_pos, ball_velocity)
+
+def circleVsRectangle(circle_pos, circle_radius, rect_pos, rect_size):
+    px = max(circle_pos.x, rect_pos.x)
+    px = min(px, rect_pos.x + rect_size.x)
+    py = max(circle_pos.y, rect_pos.y)
+    py = min(py, rect_pos.y + rect_size.y)
+
+    return (((circle_pos.y-py) ** 2 + (circle_pos.x-px) ** 2) < (circle_radius ** 2), pygame.Vector2(px, py))
+
+did = circleVsRectangle(pygame.Vector2(0, 0), 5,
+                  pygame.Vector2(10, 10), pygame.Vector2(8, 5))
+print(f"{did}")
+did = circleVsRectangle(pygame.Vector2(0, 0), 5,
+                  pygame.Vector2(3, 3), pygame.Vector2(8, 5))
+print(f"{did}")
+
+isStepping = False
 while running:
+    procFrame = False
     # poll for events
     # pygame.QUIT event means the user clicked X to close your window
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
+        if event.type == pygame.KEYDOWN:
+            if (event.key == pygame.K_F10):
+                procFrame = True
+            if (event.key == pygame.K_F9):
+                isStepping = not isStepping
+
+    keys = pygame.key.get_pressed()
 
     # fill the screen with a color to wipe away anything from last frame
     screen.fill("black")
 
-    pygame.draw.rect(screen, "white", ((player_pos), (80, 30)), 40)
+    pygame.draw.rect(screen, "white", ((player_pos), (player_size)), 40)
     pygame.draw.circle(screen, "white", ball_pos, 5)
     pygame.draw.circle(screen, "red", cube_center, 2)
 
-    keys = pygame.key.get_pressed()
-    if keys[pygame.K_a]:
-        player_pos.x -= 300 * dt
-    if keys[pygame.K_d]:
-        player_pos.x += 300 * dt
+    if not isStepping or (isStepping and procFrame):
+        if keys[pygame.K_a]:
+            player_pos.x -= 300 * dt
+        if keys[pygame.K_d]:
+            player_pos.x += 300 * dt
 
-    cube_center.x = player_pos.x + 40
-    cube_center.y = player_pos.y + 15
+        cube_center.x = player_pos.x + 40
+        cube_center.y = player_pos.y + 15
 
-    if keys[pygame.K_SPACE] and not has_started:
-        ball_velocity.x = ball_pos.x - cube_center.x
-        ball_velocity.y = ball_pos.y - cube_center.y
-        ball_velocity.normalize_ip()
-        has_started = True
+        if keys[pygame.K_SPACE] and not has_started:
+            ball_velocity.x = ball_pos.x - cube_center.x
+            ball_velocity.y = ball_pos.y - cube_center.y
+            ball_velocity.normalize_ip()
+            has_started = True
 
-    bv_frame = ball_velocity * 350 * dt
-    ball_pos += bv_frame
-    #ball_pos.x += ball_velocity.x * 350 * dt
-    #ball_pos.y += ball_velocity.y * 350 * dt
+        bv_frame = ball_velocity * 350 * dt
+        ball_pos += bv_frame
 
-    if ball_pos.x <= 0:
-        print(f"{ball_pos}")
-        ball_end = pygame.Vector2(ball_pos)
-        ball_pos -= bv_frame
-        print(f"testing line {ball_pos} {ball_end} against (0,0) (0,{screen.get_height()})")
-        intersection = getLineIntersection(ball_pos, ball_end, pygame.Vector2(0,0), pygame.Vector2(0, screen.get_height()))
-        print(f"intersection: {intersection}")
-        if intersection[0]:
-            print("got intersection")
-            intersection[1]
-            leftover =  ball_end - intersection[1]
-            n = pygame.Vector2(1,0)
-            ball_velocity = ball_velocity.reflect(n)
-            leftover = leftover.reflect(n)
-            ball_pos = intersection[1] + leftover
-            print(f"Leftover: {leftover}, ball vel: {ball_velocity}, ball pos: {ball_pos}")
+        collision, point = circleVsRectangle(ball_pos, 5, player_pos, player_size)
+        if collision:
+            pygame.draw.circle(screen, "red", point, 2)
 
-        #print("ball moved this frame: ", 350 * dt)
-        #print("ball moved on x this frame: ", ball_velocity.x * 350 * dt)
-        ## get leftover velocity
-        #leftover = ball_pos.x * -1
-        #factor = () / (ball_pos.x - ball_end.x)
-        ## change velocity vector (reflect?)
-        #n = pygame.Vector2(1,0)
-        #ball_velocity = ball_velocity.reflect(n)
-        ## move more with new velocity.
-        #p = leftover / (350 * dt)
-        #print("correction this frame: ", p * (350 * dt))
-        #ball_pos.x += ball_velocity.x * p * (350 * dt)
+        if ball_pos.x <= 0:
+            ball_pos, ball_velocity = doBouncePhysics(ball_pos, bv_frame, ball_velocity,
+                                                      pygame.Vector2(0,0), pygame.Vector2(0, screen.get_height()), 
+                                                      pygame.Vector2(1,0))
 
-    if ball_pos.y <= 0:
-        leftover = ball_pos.y * -1
-        n = pygame.Vector2(0, 1)
-        ball_velocity = ball_velocity.reflect(n)
-        p = leftover / (350 * dt)
-        ball_pos.y += ball_velocity.y * p * (350 * dt)
+        if ball_pos.y <= 0:
+            ball_pos, ball_velocity = doBouncePhysics(ball_pos, bv_frame, ball_velocity, 
+                                                      pygame.Vector2(0,0), pygame.Vector2(screen.get_width(), 0), 
+                                                      pygame.Vector2(0,1))
 
-    if ball_pos.x >= screen.get_width():
-        leftover = ball_pos.x - screen.get_width()
-        print("Leftover: ", leftover)
-        n = pygame.Vector2(-1, 0)
-        ball_velocity = ball_velocity.reflect(n)
-        p = leftover / (350 * dt)
-        ball_pos.x += ball_velocity.x * p * (350 * dt)
+        if ball_pos.x >= screen.get_width():
+            ball_pos, ball_velocity = doBouncePhysics(ball_pos, bv_frame, ball_velocity,
+                                                      pygame.Vector2(screen.get_width(), 0), pygame.Vector2(screen.get_width(), screen.get_height()),
+                                                      pygame.Vector2(-1,0))
 
-    if ball_pos.y >= screen.get_height():
-        leftover = ball_pos.y - screen.get_height()
-        print("Leftover: ", leftover)
-        n = pygame.Vector2(0, -1)
-        ball_velocity = ball_velocity.reflect(n)
-        p = leftover / (350 * dt)
-        ball_pos.y += ball_velocity.y * p * (350 * dt)
+        if ball_pos.y >= screen.get_height():
+            ball_pos, ball_velocity = doBouncePhysics(ball_pos, bv_frame, ball_velocity,
+                                                      pygame.Vector2(screen.get_width(), screen.get_height()), pygame.Vector2(0, screen.get_height()), 
+                                                      pygame.Vector2(0,-1))
 
     # flip() the display to put your work on screen
     pygame.display.flip()
@@ -131,6 +134,6 @@ while running:
     # limits FPS to 60
     # dt is delta time in seconds since last frame, used for framerate-
     # independent physics.
-    dt = clock.tick(165) / 1000
+    dt = clock.tick(60) / 1000
 
 pygame.quit()
