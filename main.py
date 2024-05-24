@@ -1,8 +1,5 @@
 # TODO:
-# Finish physics re-write
-# Clamp player movement to screen
 # Player velocity
-# Multiplier to score
 import pygame
 
 # pygame setup
@@ -20,6 +17,7 @@ running = True
 dt = 0
 award_amount = 5
 score = 0
+multiplyer = 1
 
 walls = []
 # Left
@@ -29,10 +27,10 @@ walls.append(pygame.Rect((0, -20), (screen.get_width(), 20)))
 # Right
 walls.append(pygame.Rect((screen.get_width(), 0), (20, screen.get_height())))
 
-
 player_pos = pygame.Vector2(screen.get_width() / 2 - 80, screen.get_height() - 80)
 player_size = pygame.Vector2(160, 60)
-cube_center = player_pos + (player_size) #pygame.Vector2(player_pos.x + 40, player_pos.y + 15)
+player_velocity = pygame.Vector2(0,0)
+cube_center = player_pos + (player_size * 0.5)
 ball_pos = pygame.Vector2(screen.get_width() / 2, screen.get_height() - 100)
 ball_radius = 10
 ball_velocity = pygame.Vector2(0, 0)
@@ -73,36 +71,34 @@ def getLineIntersection(p0: pygame.Vector2, p1: pygame.Vector2, p2: pygame.Vecto
         return (True, vec)
     return (False, vec)
 
-def doWallPhysics(ball_pos, bv_frame, ball_velocity, start, end, n):
-    ball_end = pygame.Vector2(ball_pos) + (bv_frame * 3)
-    ball_pos -= bv_frame
-    intersection = getLineIntersection(ball_pos, ball_end, start, end)
-    if intersection[0]:
-        #return doWallPhysics2(ball_pos, bv_frame, ball_velocity, intersection[1], n)
-        leftover =  ball_end - intersection[1]
-        ball_velocity = ball_velocity.reflect(n)
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-
-    return (ball_pos, ball_velocity)
-
-def doBouncePhysics(ball_pos, bv_frame, ball_velocity, intersect_point, n):
-    print(f"{bv_frame}")
+def doBouncePhysics(ball_pos, ball_velocity, intersect_point, n):
     leftover = (ball_pos - intersect_point).magnitude() - (ball_radius * 1.001)
-    print(f"leftover {leftover} mag: {(ball_pos - intersect_point).magnitude()} br: {ball_radius * 1.001}")
     ball_pos += (leftover * ball_velocity)
-    print(f"pos: {ball_pos}")
     ball_velocity = ball_velocity.reflect(n)
     return ball_pos, ball_velocity
 
-def doBounceOffPlayer(ball_pos, bv_frame, ball_velocity, intersect_point, n, center_rect):
+def doBounceOffPlayer(ball_pos, ball_velocity, intersect_point, n, center_rect):
+    print(f"bp {ball_pos} bv {ball_velocity}")
     diff_dir = (intersect_point - center_rect).normalize()
-    print(f"{bv_frame}")
+    print(f"{diff_dir}")
     leftover = (ball_pos - intersect_point).magnitude() - (ball_radius * 1.001)
-    print(f"leftover {leftover} mag: {(ball_pos - intersect_point).magnitude()} br: {ball_radius * 1.001}")
+    print(f"{leftover}")
     ball_pos += (leftover * ball_velocity)
-    print(f"pos: {ball_pos}")
+    print(f"new ballpos {ball_pos}")
     ball_velocity = (ball_velocity.reflect(n) + diff_dir).normalize()
+    print(f"new ball vel: {ball_velocity}")
+    return ball_pos, ball_velocity
+
+def doBounceOffPlayer2(ball_pos, ball_velocity, player_velocity, intersect_point, n, center_rect):
+    print(f"bp {ball_pos} bv {ball_velocity} pv {player_velocity}")
+    #diff_dir = (intersect_point - center_rect).normalize()
+    leftover = (ball_radius * 1.001) - (ball_pos - intersect_point).magnitude()
+    print(f"{leftover}")
+    ball_pos += (leftover * player_velocity)
+    print(f"new ballpos {ball_pos}")
+    #ball_velocity = (ball_velocity.reflect(n) + diff_dir).normalize()
+    ball_velocity = ball_velocity.reflect(n)
+    print(f"new ball vel: {ball_velocity}")
     return ball_pos, ball_velocity
 
 def circleVsRectangle(circle_pos, circle_radius, rect):
@@ -112,103 +108,6 @@ def circleVsRectangle(circle_pos, circle_radius, rect):
     py = min(py, rect.y + rect.h)
 
     return (((circle_pos.y-py) ** 2 + (circle_pos.x-px) ** 2) < (circle_radius ** 2), pygame.Vector2(px, py))
-
-def circleVelocityVsRectangle(ball_pos, bv_frame, ball_velocity, rect_point, rect_size):
-    did_collide = False
-    ball_end = pygame.Vector2(ball_pos)
-    ball_start = (ball_pos - bv_frame)
-    topRight = pygame.Vector2(rect_point.x + rect_size.x, rect_point.y)
-    botLeft = pygame.Vector2(rect_point.x, rect_point.y + rect_size.y)
-    n = pygame.Vector2(0, 1)
-    intersection = getLineIntersection(ball_start, ball_end, rect_point, topRight)
-    if intersection[0]:
-        did_collide = True 
-        leftover =  ball_end - intersection[1]
-        ball_velocity = ball_velocity.reflect(n)
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-
-    n.update(1, 0)
-    intersection = getLineIntersection(ball_start, ball_end, topRight, rect_point + rect_size)
-    if intersection[0]:
-        did_collide = True 
-        leftover =  ball_end - intersection[1]
-        ball_velocity = ball_velocity.reflect(n)
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-
-    n.update(0, -1)
-    intersection = getLineIntersection(ball_start, ball_end, rect_point + rect_size, botLeft)
-    if intersection[0]:
-        did_collide = True 
-        leftover =  ball_end - intersection[1]
-        ball_velocity = ball_velocity.reflect(n)
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-
-    n.update(-1, 0)
-    intersection = getLineIntersection(ball_start, ball_end, botLeft, rect_point)
-    if intersection[0]:
-        did_collide = True 
-        leftover =  ball_end - intersection[1]
-        ball_velocity = ball_velocity.reflect(n)
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-    
-    return (ball_pos, ball_velocity, did_collide)
-
-def circleVelocityVsPlayerRectangle(ball_pos, bv_frame, ball_velocity, rect_point, rect_size):
-    radius_correction = ball_velocity * 5
-    ball_end = pygame.Vector2(ball_pos)# - radius_correction
-    ball_start = (ball_pos - bv_frame)# + radius_correction
-    topRight = pygame.Vector2(rect_point.x + rect_size.x, rect_point.y)
-    botLeft = pygame.Vector2(rect_point.x, rect_point.y + rect_size.y)
-    center_rect = rect_point + (rect_size * 0.5)
-    n = pygame.Vector2(0, 1)
-    intersection = getLineIntersection(ball_start, ball_end, rect_point, topRight)
-    if intersection[0]:
-        bump_sfx.play()
-        diff_dir = (intersection[1] - center_rect).normalize()
-        leftover =  ball_end - intersection[1]# + radius_correction
-        ball_velocity = (ball_velocity.reflect(n) + diff_dir).normalize()
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-        #return (ball_pos, ball_velocity)
-
-    n.update(1, 0)
-    intersection = getLineIntersection(ball_start, ball_end, topRight, rect_point + rect_size)
-    if intersection[0]:
-        bump_sfx.play()
-        diff_dir = (intersection[1] - center_rect).normalize()
-        leftover =  ball_end - intersection[1]# + radius_correction
-        ball_velocity = (ball_velocity.reflect(n) + diff_dir).normalize()
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-        #return (ball_pos, ball_velocity)
-
-    n.update(0, -1)
-    intersection = getLineIntersection(ball_start, ball_end, rect_point + rect_size, botLeft)
-    if intersection[0]:
-        bump_sfx.play()
-        diff_dir = (intersection[1] - center_rect).normalize()
-        leftover =  ball_end - intersection[1]# + radius_correction
-        ball_velocity = (ball_velocity.reflect(n) + diff_dir).normalize()
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-        #return (ball_pos, ball_velocity)
-
-    n.update(-1, 0)
-    intersection = getLineIntersection(ball_start, ball_end, botLeft, rect_point)
-    if intersection[0]:
-        bump_sfx.play()
-        diff_dir = (intersection[1] - center_rect).normalize()
-        leftover =  ball_end - intersection[1]# + radius_correction
-        ball_velocity = (ball_velocity.reflect(n) + diff_dir).normalize()
-        leftover = leftover.reflect(n)
-        ball_pos = intersection[1] + leftover
-        #return (ball_pos, ball_velocity)
-    
-    return (ball_pos, ball_velocity)
 
 def findFaceNormal(ball_center, rect):
     rect_center = pygame.Vector2(rect.x + (rect.w * 0.5), rect.y + (rect.h * 0.5))
@@ -242,8 +141,6 @@ def findFaceNormal(ball_center, rect):
 collision = False
 isStepping = False
 game_over = False
-dc = False
-last_cp = pygame.Vector2(0,0)
 while running:
     procFrame = False
     # poll for events
@@ -275,17 +172,32 @@ while running:
     font_img = sys_font.render(f"Score: {score}", True, "white")
     screen.blit(font_img, (screen.get_width() / 2 - font_img.get_width() / 2, 5))
 
-    #if dc:
-    pygame.draw.circle(screen, "red", last_cp, 2)
-
     cube_center = player_pos + (player_size * 0.5)
 
     if (not isStepping or (isStepping and procFrame)):
-        # TODO: player velocity, player vs ball collision check.
+        player_velocity.update(0, 0)
         if keys[pygame.K_a]:
-            player_pos.x -= 300 * dt
+            player_velocity.x = -1
         if keys[pygame.K_d]:
-            player_pos.x += 300 * dt
+            player_velocity.x = 1
+
+        player_pos += player_velocity * 300 * dt
+
+        if player_pos.x < 0:
+            player_pos.x = 0
+        if player_pos.x > screen.get_width() - player_size.x:
+            player_pos.x = screen.get_width() - player_size.x
+
+        p_rect = pygame.Rect(player_pos, player_size)
+        #dc, contact_point = circleVsRectangle(ball_pos, ball_radius, p_rect)
+        #if dc:
+        #    print("player hit the ball!")
+        #    normal = findFaceNormal(ball_pos, p_rect)
+        #    print(f"player normal {normal}")
+        #    ball_pos, ball_velocity = doBounceOffPlayer2(ball_pos, ball_velocity, player_velocity, contact_point, normal, p_rect.center)
+        #    # TODO: check physics?
+        #    ball_pos += ball_velocity * 350 * dt
+        #    multiplyer = 1
 
         if keys[pygame.K_SPACE] and not has_started:
             print("START")
@@ -304,33 +216,31 @@ while running:
                 b = blocks[y * x_count + x]
                 dc, contact_point = circleVsRectangle(ball_pos, ball_radius, b)
                 if dc:
-                    last_cp = contact_point
                     normal = findFaceNormal(ball_pos, b)
-                    #print(f"{normal}")
                     ball_pos -= bv_frame
-                    #print(f"ball_pos {ball_pos} ball_velocity {ball_velocity}")
-                    ball_pos, ball_velocity = doBouncePhysics(ball_pos, bv_frame, ball_velocity, contact_point, normal)
-                    #print(f"ball_pos {ball_pos} ball_velocity {ball_velocity}")
+                    ball_pos, ball_velocity = doBouncePhysics(ball_pos, ball_velocity, contact_point, normal)
                     bump_sfx.play()
-                    score += award_amount * y + award_amount
+                    score += (award_amount * y + award_amount) * multiplyer
+                    multiplyer = 2
+                    print(f"multiplyer {multiplyer}")
                     b.update(-10, -10, 1, 1)
 
-        #ball_pos, ball_velocity = circleVelocityVsPlayerRectangle(ball_pos, bv_frame, ball_velocity, 
-        #                                                    player_pos, player_size)
-        p_rect = pygame.Rect(player_pos, player_size)
         dc, contact_point = circleVsRectangle(ball_pos, ball_radius, p_rect)
         if dc:
+            print("Ball hit player!")
             normal = findFaceNormal(ball_pos, p_rect)
+            print(f"{normal}")
             ball_pos -= bv_frame
-            ball_pos, ball_velocity = doBounceOffPlayer(ball_pos, bv_frame, ball_velocity, contact_point, normal, p_rect.center)
+            ball_pos, ball_velocity = doBounceOffPlayer(ball_pos, ball_velocity, contact_point, normal, p_rect.center)
             bump_sfx.play()
+            multiplyer = 1
 
         for w in walls:
             dc, contact_point = circleVsRectangle(ball_pos, ball_radius, w)
             if dc:
                 normal = findFaceNormal(ball_pos, w)
                 ball_pos -= bv_frame
-                ball_pos, ball_velocity = doBouncePhysics(ball_pos, bv_frame, ball_velocity, contact_point, normal)
+                ball_pos, ball_velocity = doBouncePhysics(ball_pos, ball_velocity, contact_point, normal)
                 bump_sfx.play()
 
         if ball_pos.y >= screen.get_height():
@@ -349,6 +259,5 @@ while running:
     # dt is delta time in seconds since last frame, used for framerate-
     # independent physics.
     dt = clock.tick(60) / 1000
-    #print(f"{dt}ms")
 
 pygame.quit()
